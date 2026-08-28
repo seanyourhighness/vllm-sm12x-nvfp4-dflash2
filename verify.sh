@@ -57,15 +57,11 @@ done
 [[ "${hashes[0]}" == "${hashes[1]}" ]] || { echo "FAIL: long-decode determinism (hashes differ)" >&2; exit 1; }
 echo "PASS: long-decode determinism (2/2 identical)"
 
-# 2) NIAH: plant a codeword at ~30K, ask for it.
-needle_prompt="$(python3 - <<'PY'
-filler = "The quick brown fox jumps over the lazy dog. " * 1000
-print(filler[:30000] + "\n\nSECRET_CODEWORD=MOONWEASEL-7\n\n" + filler[:30000])
-PY
-)"
-niah="$(curl -fsS "$base/v1/chat/completions" -H 'Content-Type: application/json' \
-  -d "{\"model\":\"${SERVED_MODEL_NAME}\",\"temperature\":0,\"max_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"What is the SECRET_CODEWORD value? Reply with only the codeword.\"}]}")"
-python3 -c 'import json,sys; t=json.loads(sys.argv[1])["choices"][0]["message"].get("content",""); sys.exit(0 if "MOONWEASEL-7" in t else 1)' "$niah" \
+# 2) NIAH: plant a codeword in a ~30K-token haystack at two depths and
+#    require retrieval. Robust to thinking-enabled responses (content may be
+#    null while reasoning_content holds the answer) and verifies the server
+#    actually ingested the haystack (see bench/niah_gate.py).
+BASE_URL="$base" MODEL="${SERVED_MODEL_NAME}" python3 bench/niah_gate.py \
   || { echo "FAIL: NIAH (codeword not retrieved)" >&2; exit 1; }
 echo "PASS: NIAH (MOONWEASEL-7 retrieved)"
 

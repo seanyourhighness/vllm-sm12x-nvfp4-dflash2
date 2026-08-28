@@ -1,5 +1,28 @@
 # Changelog — vllm-sm12x-nvfp4-dflash2
 
+## NIAH gate fix (2026-08-28)
+
+`verify.sh --full` no longer crashes with `TypeError: argument of type
+'NoneType' is not a container or iterable` when the model returns a
+thinking-enabled response (`content: null`, reasoning in
+`reasoning_content`). The NIAH gate was rewritten as `bench/niah_gate.py`:
+
+- **Fixed crash (issue #5):** answer extraction now reads `content` OR
+  `reasoning_content` and never assumes a non-null string, matching the safe
+  pattern already used by the canary and `bench/vision_gate.py`.
+- **Fixed latent bug:** the old gate *built* a haystack but *never sent it* —
+  the request only contained the question, so retrieval was impossible by
+  construction. The new gate actually plants the codeword in a ~30K-token
+  haystack and requires retrieval at two depths (25%/75%).
+- **Structural guard:** passes only when `usage.prompt_tokens` proves the
+  haystack was ingested, so a request that omits the needle can never pass.
+- Requests disable thinking (`chat_template_kwargs.enable_thinking=False`)
+  like the vision gate, so the codeword lands in `content` when the server
+  honors the kwarg; the `reasoning_content` fallback covers servers that
+  don't.
+
+Upgrade: `git pull --ff-only`, then `./verify.sh --full`.
+
 ## CPU vision sidecar improvements (2026-08-26)
 
 Host-side sidecar tuning; the `.3` runtime image and all model artifacts are
